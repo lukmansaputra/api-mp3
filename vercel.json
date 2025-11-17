@@ -1,8 +1,10 @@
 {
   "version": 2,
-  "functions": {
-    "api/*.js": {
-      "runtime": "nodejs20"
+  "builds": [{ "src": "api/ytdl.js", "use": "@vercel/node" }],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/ytdl.js"
     }
-  }
+  ]
 }
