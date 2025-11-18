@@ -1,10 +1,15 @@
-{
-  "version": 2,
-  "builds": [{ "src": "api/ytdl.js", "use": "@vercel/node" }],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/ytdl.js"
+ {
+      "version": 2,
+      "builds": [
+        {
+          "src": "api/*.js",
+          "use": "@vercel/node"
+        }
+      ],
+      "routes": [
+        {
+          "src": "/(.*)",
+          "dest": "/api"
+        }
+      ]
     }
-  ]
-}
