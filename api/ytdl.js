@@ -1,16 +1,24 @@
+// File: api/ytdl.js
+
 import express from "express";
 import axios from "axios";
 import cors from "cors";
 
-// Create express app
+// 1. Inisialisasi Express
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.post("/api/ytdl", async (req, res) => {
+// 2. Definisi Rute
+// Menggunakan '/' karena vercel.json sudah me-rewrite semua request ke file ini.
+app.post("/", async (req, res) => {
   try {
     const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: true, message: "URL is required" });
+    }
 
     const response = await axios.post(
       "https://ytdown.to/proxy.php",
@@ -40,9 +48,11 @@ app.post("/api/ytdl", async (req, res) => {
 
     res.json(response.data.api || response.data);
   } catch (err) {
-    res.status(500).json({ error: true, message: err.message });
+    // Logging error di Vercel logs
+    console.error("YTDL Error:", err.message);
+    res.status(500).json({ error: true, message: "Failed to process the request." });
   }
 });
 
-// Export sebagai handler untuk Vercel
+// 3. Wajib: Export sebagai handler default untuk Vercel (ESM)
 export default app;
