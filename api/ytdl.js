@@ -2,76 +2,43 @@ import axios from "axios";
 
 export default async function handler(req, res) {
   try {
-    const url = req.query.url;
-    const getDownload = req.query.getDownload === "true";
+    const { url } = req.query;
     if (!url) return res.status(400).json({ error: "Missing ?url=" });
 
-    // oEmbed untuk info
-    const videoId = url.split("youtu.be/")[1] || url.split("v=")[1];
+    // Ambil videoId
+    const videoId = url.includes("youtu.be/")
+      ? url.split("youtu.be/")[1]
+      : url.split("v=")[1];
+
+    // STEP 1: oEmbed info
     const oembedRes = await axios.get(
       `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
       { headers: { "User-Agent": "Mozilla/5.0" } }
     );
     const oembed = oembedRes.data;
 
-    // Converter API (cnv.cx)
-    const convertRes = await axios.post(
-      "https://cnv.cx/v2/converter",
-      new URLSearchParams({
-        link: url,
-        format: "mp3",
-        audioBitrate: "320",
-        videoQuality: "720",
-        filenameStyle: "pretty",
-        vCodec: "h264"
-      }),
-      {
-        headers: {
-          accept: "*/*",
-          "accept-language": "id,en-US;q=0.9,en;q=0.8",
-          "cache-control": "no-cache",
-          key: "MjYwZWY4OGM4Njg1ZjZmNTVmYzcxN2I3M2JhZmU4MjhjYjVhMGE2YTIyOWEwYTRhOTI3OGM4NzBjNGQ3ODQyM3xNVGMyTXpVMU5EWXhNakk0Tnc9PQ==",
-          origin: "https://iframe.y2meta-uk.com",
-          pragma: "no-cache",
-          referer: "https://iframe.y2meta-uk.com/",
-          "user-agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
-        }
-      }
-    );
+    // STEP 2: Generate URL download via cnv.cx (tidak di-fetch)
+    const converterBase = "https://cnv.cx/v2/converter";
+    const downloadParams = new URLSearchParams({
+      link: url,
+      format: "mp3",
+      audioBitrate: "320",
+      videoQuality: "720",
+      filenameStyle: "pretty",
+      vCodec: "h264"
+    });
 
-    const data = convertRes.data;
+    const downloadUrl = `${converterBase}?${downloadParams.toString()}`;
 
+    // STEP 3: Return info + direct download link
     const info = {
       title: oembed.title,
       author: oembed.author_name,
       thumbnail: oembed.thumbnail_url,
-      duration: data.duration || null,
-      formats: [
-        {
-          ext: "mp3",
-          quality: "320kbps",
-          size: data.size || null,
-          url: data.url
-        }
-      ]
+      downloadUrl
     };
 
-    if (!getDownload) return res.status(200).json(info);
-
-    // Streaming download
-    const fileRes = await axios.get(data.url, {
-      responseType: "arraybuffer",
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        Referer: "https://iframe.y2meta-uk.com/",
-        Origin: "https://iframe.y2meta-uk.com"
-      }
-    });
-
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Content-Disposition", `attachment; filename="${data.filename}"`);
-    return res.send(fileRes.data);
+    return res.status(200).json(info);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: err.message });
