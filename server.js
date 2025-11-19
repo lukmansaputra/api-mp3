@@ -1,20 +1,27 @@
+import express from "express";
 import axios from "axios";
 
-export default async function handler(req, res) {
+const app = express();
+const port = 3000;
+
+app.get("/download", async (req, res) => {
   try {
-    const url = req.query.url;
-    const getDownload = req.query.getDownload === "true";
+    const { url, getDownload } = req.query;
     if (!url) return res.status(400).json({ error: "Missing ?url=" });
 
-    // oEmbed untuk info
+    // STEP 1: oEmbed untuk info
     const videoId = url.split("youtu.be/")[1] || url.split("v=")[1];
     const oembedRes = await axios.get(
       `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
-      { headers: { "User-Agent": "Mozilla/5.0" } }
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0"
+        }
+      }
     );
     const oembed = oembedRes.data;
 
-    // Converter API (cnv.cx)
+    // STEP 2: Converter API (cnv.cx) untuk URL download
     const convertRes = await axios.post(
       "https://cnv.cx/v2/converter",
       new URLSearchParams({
@@ -40,27 +47,29 @@ export default async function handler(req, res) {
       }
     );
 
-    const data = convertRes.data;
+    const convertData = convertRes.data;
 
+    // STEP 3: Gabungkan info
     const info = {
       title: oembed.title,
       author: oembed.author_name,
       thumbnail: oembed.thumbnail_url,
-      duration: data.duration || null,
+      duration: convertData.duration || null,
       formats: [
         {
           ext: "mp3",
           quality: "320kbps",
-          size: data.size || null,
-          url: data.url
+          size: convertData.size || null,
+          url: convertData.url
         }
       ]
     };
 
-    if (!getDownload) return res.status(200).json(info);
+    // STEP 4: Kalau cuma info → return JSON
+    if (getDownload !== "true") return res.json(info);
 
-    // Streaming download
-    const fileRes = await axios.get(data.url, {
+    // STEP 5: Kalau download → stream
+    const fileRes = await axios.get(convertData.url, {
       responseType: "arraybuffer",
       headers: {
         "User-Agent": "Mozilla/5.0",
@@ -70,10 +79,15 @@ export default async function handler(req, res) {
     });
 
     res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Content-Disposition", `attachment; filename="${data.filename}"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${convertData.filename}"`
+    );
     return res.send(fileRes.data);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: err.message });
   }
-}
+});
+
+app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
